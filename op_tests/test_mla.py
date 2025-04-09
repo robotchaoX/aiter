@@ -321,8 +321,29 @@ def test_mla(
         msg=f"mla_decode-absorb    [golden vs    triton]:{us_torch_decode:>8.2f} us vs {us_ref:>8.2f} us......",
     )
 
-    # aiter implementation
     kv_last_page_lens = torch.ones(batch_size, dtype=torch.int)
+
+    # hip implementation
+    out_hip = torch.empty(
+        (batch_size, nhead,  v_head_dim), dtype=dtype).fill_(-1)
+    _, us_hip = run_perftest(aiter.mla_decode_fwd_hip,
+                            q,
+                            kv_buffer.view(num_page,
+                                            page_size,
+                                            nhead_kv,
+                                            qk_head_dim),
+                            out_hip,
+                            kv_indptr,
+                            kv_indices,
+                            kv_last_page_lens,
+                            sm_scale)
+    checkAllclose(
+        out_torch_decode,
+        out_hip,
+        msg=f"mla_decode-absorb    [golden vs aiter_hip]:{us_torch_decode:>8.2f} us vs {us_hip:>8.2f} us......",
+    )
+
+    # aiter implementation
     out_asm = torch.empty((batch_size, nhead, v_head_dim), dtype=dtype).fill_(-1)
     (attn_logits, attn_lse), us_asm = run_perftest(
         aiter.mla.mla_decode_fwd,
